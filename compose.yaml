@@ -1,0 +1,42 @@
+# 픽업플래너 개발 환경 (요구사항명세_비기능 SYS-003 버전 기준)
+# 실행: docker compose up -d   /  재배포: docker compose restart app
+name: pickupplanner
+
+services:
+  oracle:
+    image: container-registry.oracle.com/database/free:23.26.1.0
+    environment:
+      ORACLE_PWD: ${ORACLE_PWD:?.env 의 ORACLE_PWD 를 설정하세요}
+      APP_DB_USER: ${APP_DB_USER:-PICKUP}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?.env 의 APP_DB_PASSWORD 를 설정하세요}
+      TZ: Asia/Seoul
+    ports:
+      - "1521:1521"
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+      - ./docker/oracle/setup:/opt/oracle/scripts/setup:ro
+    healthcheck:
+      test: ["CMD", "/opt/oracle/checkDBStatus.sh"]
+      interval: 15s
+      timeout: 10s
+      retries: 60
+      start_period: 60s
+
+  app:
+    build: ./docker/app
+    image: pickupplanner-app:jdk21.0.11-tomcat11.0.27
+    depends_on:
+      oracle:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:oracle:thin:@//oracle:1521/FREEPDB1
+      DB_USER: ${APP_DB_USER:-PICKUP}
+      DB_PASSWORD: ${APP_DB_PASSWORD}
+    ports:
+      - "8080:8080"
+      - "8000:8000"
+    volumes:
+      - ./:/workspace:ro
+
+volumes:
+  oracle-data:

@@ -21,3 +21,6 @@ RemoteSystemsTempFiles/
 
 # DB 접속 정보 (값을 비운 db.properties.example은 올린다)
 db.properties
+
+# Docker 개발 환경 비밀번호 (값을 비운 .env.example 은 올린다)
+.env

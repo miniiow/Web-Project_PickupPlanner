@@ -32,8 +32,7 @@ erDiagram
     currency ||--o{ pull_cost : "뽑기 비용"
 
     pity_group ||--o{ gacha_rule : "묶음"
-    gacha_rule ||--o{ rule_rate : "등급별 확률"
-    gacha_rule ||--o{ rule_pickup_share : "픽업 몫"
+    gacha_rule ||--o{ rule_rate : "등급별 확률·픽업 몫"
     gacha_rule ||--o{ rule_guarantee : "보장"
     banner_type ||--o{ banner : "종류"
     gacha_rule ||--o{ banner : "적용 규칙"

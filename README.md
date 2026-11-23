@@ -56,3 +56,6 @@
 |docs/01_requirements/요구사항명세_기능.md|기능 요구사항 상세|
 |docs/01_requirements/요구사항명세_비기능.md|비기능 요구사항 상세와 개발 환경|
 |docs/01_requirements/기능명세서.md|기능을 동작 단위로 나눈 기능명세서|
+|docs/02_database/테이블_도출.md|DB 설계 원칙, 테이블 목록, 요구사항과 테이블 연결|
+|docs/02_database/ERD.md|테이블 관계도|
+|docs/02_database/테이블_정의서.md|컬럼별 테이블 정의와 규칙 모델 예시|

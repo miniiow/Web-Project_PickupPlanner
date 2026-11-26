@@ -101,7 +101,7 @@
           <mxGeometry height="18" width="210" y="100" as="geometry" />
         </mxCell>
         <mxCell id="t_banner_type" parent="1" style="swimlane;fontStyle=1;childLayout=stackLayout;horizontal=1;startSize=28;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;fillColor=#ffe6cc;strokeColor=#d79b00;swimlaneFillColor=#ffffff;fontSize=13;" value="banner_type" vertex="1">
-          <mxGeometry height="118" width="210" x="654" y="630" as="geometry" />
+          <mxGeometry height="136" width="210" x="654" y="630" as="geometry" />
         </mxCell>
         <mxCell id="t_banner_type_c0" parent="t_banner_type" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;portConstraint=eastwest;fontFamily=Courier New;fontSize=11;whiteSpace=pre;fontStyle=1;" value="PK   banner_type_id  NUMBER" vertex="1">
           <mxGeometry height="18" width="210" y="28" as="geometry" />
@@ -913,7 +913,7 @@
         <mxCell id="e50" edge="1" parent="1" source="t_import_batch" style="endArrow=ERmany;startArrow=ERmandOne;endFill=0;startFill=0;html=1;fontSize=10;strokeColor=#555555;rounded=0;" target="t_import_item" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-      </root>
+      <mxCell id="t_character_pool" value="character_pool" style="swimlane;fontStyle=1;childLayout=stackLayout;horizontal=1;startSize=28;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;marginBottom=0;fillColor=#dae8fc;strokeColor=#6c8ebf;swimlaneFillColor=#ffffff;fontSize=13;" vertex="1" parent="1"><mxGeometry x="339" y="242" width="250" height="64" as="geometry"/></mxCell><mxCell id="t_character_pool_c0" value="PK,FKcharacter_id  NUMBER" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;portConstraint=eastwest;fontFamily=Courier New;fontSize=11;whiteSpace=pre;fontStyle=1;" vertex="1" parent="t_character_pool"><mxGeometry y="28" width="250" height="18" as="geometry"/></mxCell><mxCell id="t_character_pool_c1" value="PK   pool_code  VARCHAR2(20)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;portConstraint=eastwest;fontFamily=Courier New;fontSize=11;whiteSpace=pre;fontStyle=1;" vertex="1" parent="t_character_pool"><mxGeometry y="46" width="250" height="18" as="geometry"/></mxCell><mxCell id="e_character_pool" value="출현 풀" style="endArrow=ERmany;startArrow=ERmandOne;endFill=0;startFill=0;html=1;fontSize=10;strokeColor=#555555;rounded=0;" edge="1" parent="1" source="t_game_character" target="t_character_pool"><mxGeometry relative="1" as="geometry"/></mxCell><mxCell id="t_banner_type_pool" parent="t_banner_type" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=6;spacingRight=4;overflow=hidden;rotatable=0;portConstraint=eastwest;fontFamily=Courier New;fontSize=11;whiteSpace=pre;" value="     pool_code  VARCHAR2(20)" vertex="1"><mxGeometry y="118" width="210" height="18" as="geometry"/></mxCell></root>
     </mxGraphModel>
   </diagram>
 </mxfile>

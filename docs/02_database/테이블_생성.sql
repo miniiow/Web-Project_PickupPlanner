@@ -1,4 +1,4 @@
--- 픽업 플래너 테이블 생성 (1차 구현 범위 18개)
+-- 픽업 플래너 테이블 생성 (1차 구현 범위 19개)
 -- 관련 이슈 : #8
 -- 근거 문서 : 테이블_도출.md (구현 단계), 테이블_정의서.md
 -- 실행 계정 : PICKUP (접속 서비스 FREEPDB1)
@@ -24,6 +24,7 @@ DROP TABLE IF EXISTS banner_pickup     CASCADE CONSTRAINTS PURGE;
 DROP TABLE IF EXISTS banner_schedule   CASCADE CONSTRAINTS PURGE;
 DROP TABLE IF EXISTS banner            CASCADE CONSTRAINTS PURGE;
 DROP TABLE IF EXISTS banner_type       CASCADE CONSTRAINTS PURGE;
+DROP TABLE IF EXISTS character_pool    CASCADE CONSTRAINTS PURGE;
 DROP TABLE IF EXISTS rule_guarantee    CASCADE CONSTRAINTS PURGE;
 DROP TABLE IF EXISTS rule_rate         CASCADE CONSTRAINTS PURGE;
 DROP TABLE IF EXISTS gacha_rule        CASCADE CONSTRAINTS PURGE;
@@ -146,6 +147,15 @@ CREATE TABLE game_character (
   CONSTRAINT ck_character_active CHECK (active IN ('Y', 'N'))
 );
 
+-- 캐릭터가 속한 출현 풀. 픽업이 아닌 캐릭터는 배너 종류의 풀(banner_type.pool_code)에서 뽑는다.
+-- 어느 풀에도 없는 캐릭터(한정, 콜라보)는 픽업일 때만 나온다.
+CREATE TABLE character_pool (
+  character_id NUMBER            NOT NULL,
+  pool_code    VARCHAR2(20 CHAR) NOT NULL,
+  CONSTRAINT pk_character_pool PRIMARY KEY (character_id, pool_code),
+  CONSTRAINT fk_pool_character FOREIGN KEY (character_id) REFERENCES game_character (character_id)
+);
+
 -- ------------------------------------------------------------
 -- 확률·천장 규칙
 -- ------------------------------------------------------------
@@ -220,6 +230,7 @@ CREATE TABLE banner_type (
   code            VARCHAR2(30 CHAR) NOT NULL,
   name            VARCHAR2(50 CHAR) NOT NULL,
   default_rule_id NUMBER,
+  pool_code       VARCHAR2(20 CHAR)  NOT NULL,
   CONSTRAINT pk_banner_type PRIMARY KEY (banner_type_id),
   CONSTRAINT fk_banner_type_game FOREIGN KEY (game_id) REFERENCES game (game_id),
   CONSTRAINT fk_banner_type_rule FOREIGN KEY (default_rule_id) REFERENCES gacha_rule (rule_id),
@@ -321,12 +332,12 @@ CREATE INDEX ix_schedule_server_period ON banner_schedule (server_id, start_at, 
 CREATE INDEX ix_item_batch_status ON import_item (batch_id, status);
 
 -- ------------------------------------------------------------
--- 확인: 18개 테이블이 나오면 성공
+-- 확인: 19개 테이블이 나오면 성공
 -- ------------------------------------------------------------
 SELECT COUNT(*) AS table_count
   FROM user_tables
  WHERE table_name IN (
    'MEMBER', 'GAME', 'SERVER', 'CURRENCY', 'CURRENCY_EXCHANGE', 'PULL_COST',
-   'RARITY', 'GAME_CHARACTER', 'PITY_GROUP', 'GACHA_RULE', 'RULE_RATE',
+   'RARITY', 'GAME_CHARACTER', 'CHARACTER_POOL', 'PITY_GROUP', 'GACHA_RULE', 'RULE_RATE',
    'RULE_GUARANTEE', 'BANNER_TYPE', 'BANNER', 'BANNER_SCHEDULE', 'BANNER_PICKUP',
    'IMPORT_BATCH', 'IMPORT_ITEM');

@@ -6,4 +6,4 @@
 db.driver=oracle.jdbc.OracleDriver
 db.url=jdbc:oracle:thin:@//localhost:1521/FREEPDB1
 db.user=PICKUP
-db.password=
+db.password=pickup

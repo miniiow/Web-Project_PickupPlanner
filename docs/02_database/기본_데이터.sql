@@ -11,8 +11,9 @@
 --  - 캐릭터, 실제 배너의 ID·기간·픽업 : ArknightsAssets/ArknightsGamedata (kr)
 --    배너 이름은 알아보기 쉽게 "종류: 픽업" 형태로 붙였다. 일시는 한국 시간이다.
 --  - 예시 배너는 실제 배너가 아니며 일정도 시험용이다
--- 출현 풀 (character_pool) : STANDARD(표준), KERNEL(커널). 풀이 없으면 픽업일 때만 나온다.
---  - 커널 : 공개 데이터의 classicPotentialItemId 로 구분. 5·6성은 커널에만, 3·4성은 두 풀 모두
+-- 커널 헤드헌팅은 다루지 않는다(요구사항 C6). 커널 규칙·배너·출현 풀은 넣지 않는다.
+-- 출현 풀 (character_pool) : STANDARD(표준). 풀이 없으면 픽업일 때만 나온다.
+--  - 커널 전용(공개 데이터의 classicPotentialItemId) 5·6성은 캐릭터 정보만 넣고 풀은 없다
 --  - 한정 : 공개 데이터의 limitedCharId
 --  - 콜라보 : 데이터에 구분 항목이 없어 직접 지정했다. 확인 필요
 --  - 콜라보·한정 배너의 픽업 외 캐릭터는 표준 풀로 두었다. 확인 필요
@@ -38,14 +39,11 @@ DECLARE
   v_r6 rarity.rarity_id%TYPE;
 
   v_pg_standard pity_group.pity_group_id%TYPE;
-  v_pg_kernel   pity_group.pity_group_id%TYPE;
 
   v_rule_standard gacha_rule.rule_id%TYPE;
-  v_rule_kernel   gacha_rule.rule_id%TYPE;
   v_rule_collab   gacha_rule.rule_id%TYPE;
 
   v_type_standard banner_type.banner_type_id%TYPE;
-  v_type_kernel   banner_type.banner_type_id%TYPE;
   v_type_collab   banner_type.banner_type_id%TYPE;
   v_banner        banner.banner_id%TYPE;
 
@@ -101,7 +99,7 @@ DECLARE
     VALUES (v_banner, v_kr, p_start, p_end, p_confirmed);
   END;
 
-  -- 캐릭터와 출현 풀을 넣는다. p_pools : 'S' 표준, 'K' 커널, 'SK' 둘 다, NULL 없음(한정·콜라보)
+  -- 캐릭터와 출현 풀을 넣는다. p_pools : 'S' 표준, NULL 없음(한정·콜라보·커널 전용)
   PROCEDURE add_character(p_external VARCHAR2, p_name VARCHAR2, p_rarity NUMBER, p_pools VARCHAR2) IS
     v_id game_character.character_id%TYPE;
   BEGIN
@@ -111,9 +109,6 @@ DECLARE
 
     IF INSTR(p_pools, 'S') > 0 THEN
       INSERT INTO character_pool (character_id, pool_code) VALUES (v_id, 'STANDARD');
-    END IF;
-    IF INSTR(p_pools, 'K') > 0 THEN
-      INSERT INTO character_pool (character_id, pool_code) VALUES (v_id, 'KERNEL');
     END IF;
   END;
 
@@ -171,19 +166,14 @@ BEGIN
   -- 천장 묶음
   INSERT INTO pity_group (game_id, code, name) VALUES (v_game, 'standard', '표준 헤드헌팅')
   RETURNING pity_group_id INTO v_pg_standard;
-  INSERT INTO pity_group (game_id, code, name) VALUES (v_game, 'kernel', '커널 헤드헌팅')
-  RETURNING pity_group_id INTO v_pg_kernel;
 
   -- 규칙
   add_rule('표준 규칙', 'GROUP', v_pg_standard, '표준 배너끼리 천장 횟수를 이어서 센다', v_rule_standard);
-  add_rule('커널 규칙', 'GROUP', v_pg_kernel, '커널 배너끼리 천장 횟수를 이어서 센다', v_rule_kernel);
   add_rule('콜라보 규칙', 'BANNER', NULL, '배너마다 따로 세고 배너가 끝나면 초기화한다', v_rule_collab);
 
   -- 보장
   add_guarantee(v_rule_standard, 1, 'PICKUP_ONCE', 150, v_r6, 'N', '150회 안에 픽업 6성 1명 확정(1회)');
   add_guarantee(v_rule_standard, 2, 'PICKUP_ONCE', 300, v_r6, 'Y', '300회에 다른 픽업 6성 확정(1회)');
-  add_guarantee(v_rule_kernel,   1, 'PICKUP_ONCE', 150, v_r6, 'N', '150회 안에 픽업 6성 1명 확정(1회)');
-  add_guarantee(v_rule_kernel,   2, 'PICKUP_ONCE', 300, v_r6, 'Y', '300회에 다른 픽업 6성 확정(1회)');
   add_guarantee(v_rule_collab,   1, 'TARGET_REPEAT', 120, v_r6, 'N', '120회마다 콜라보 6성 확정');
   add_guarantee(v_rule_collab,   2, 'RARITY_BY', 50, v_r5, 'N', '처음 50회 안에 픽업 5성이 없으면 다음 5성은 픽업');
 
@@ -192,64 +182,61 @@ BEGIN
   VALUES (v_game, 'STANDARD', '표준', v_rule_standard, 'STANDARD')
   RETURNING banner_type_id INTO v_type_standard;
   INSERT INTO banner_type (game_id, code, name, default_rule_id, pool_code)
-  VALUES (v_game, 'KERNEL', '커널', v_rule_kernel, 'KERNEL')
-  RETURNING banner_type_id INTO v_type_kernel;
-  INSERT INTO banner_type (game_id, code, name, default_rule_id, pool_code)
   VALUES (v_game, 'COLLAB', '콜라보', v_rule_collab, 'STANDARD')
   RETURNING banner_type_id INTO v_type_collab;
   INSERT INTO banner_type (game_id, code, name, default_rule_id, pool_code)
   VALUES (v_game, 'LIMITED', '한정', NULL, 'STANDARD');
 
   -- 캐릭터 전체 (6성 → 3성)
-  add_character('char_003_kalts', '켈시', v_r6, 'K');
-  add_character('char_010_chen', '첸', v_r6, 'K');
-  add_character('char_017_huang', '블레이즈', v_r6, 'K');
-  add_character('char_103_angel', '엑시아', v_r6, 'K');
-  add_character('char_112_siege', '시즈', v_r6, 'K');
+  add_character('char_003_kalts', '켈시', v_r6, NULL);
+  add_character('char_010_chen', '첸', v_r6, NULL);
+  add_character('char_017_huang', '블레이즈', v_r6, NULL);
+  add_character('char_103_angel', '엑시아', v_r6, NULL);
+  add_character('char_112_siege', '시즈', v_r6, NULL);
   add_character('char_113_cqbw', 'W', v_r6, NULL);
-  add_character('char_134_ifrit', '이프리트', v_r6, 'K');
-  add_character('char_136_hsguma', '호시구마', v_r6, 'K');
-  add_character('char_147_shining', '샤이닝', v_r6, 'K');
-  add_character('char_172_svrash', '실버애쉬', v_r6, 'K');
-  add_character('char_179_cgbird', '나이팅게일', v_r6, 'K');
-  add_character('char_180_amgoat', '에이야퍄들라', v_r6, 'K');
-  add_character('char_188_helage', '헬라그', v_r6, 'K');
-  add_character('char_197_poca', '로사', v_r6, 'K');
-  add_character('char_202_demkni', '사리아', v_r6, 'K');
-  add_character('char_206_gnosis', '노시스', v_r6, 'K');
-  add_character('char_213_mostma', '모스티마', v_r6, 'K');
-  add_character('char_222_bpipe', '백파이프', v_r6, 'K');
-  add_character('char_225_haak', '아', v_r6, 'K');
+  add_character('char_134_ifrit', '이프리트', v_r6, NULL);
+  add_character('char_136_hsguma', '호시구마', v_r6, NULL);
+  add_character('char_147_shining', '샤이닝', v_r6, NULL);
+  add_character('char_172_svrash', '실버애쉬', v_r6, NULL);
+  add_character('char_179_cgbird', '나이팅게일', v_r6, NULL);
+  add_character('char_180_amgoat', '에이야퍄들라', v_r6, NULL);
+  add_character('char_188_helage', '헬라그', v_r6, NULL);
+  add_character('char_197_poca', '로사', v_r6, NULL);
+  add_character('char_202_demkni', '사리아', v_r6, NULL);
+  add_character('char_206_gnosis', '노시스', v_r6, NULL);
+  add_character('char_213_mostma', '모스티마', v_r6, NULL);
+  add_character('char_222_bpipe', '백파이프', v_r6, NULL);
+  add_character('char_225_haak', '아', v_r6, NULL);
   add_character('char_245_cello', '비르투오사', v_r6, NULL);
-  add_character('char_248_mgllan', '마젤란', v_r6, 'K');
+  add_character('char_248_mgllan', '마젤란', v_r6, NULL);
   add_character('char_249_mlyss', '뮤엘시스', v_r6, NULL);
-  add_character('char_250_phatom', '팬텀', v_r6, 'K');
-  add_character('char_263_skadi', '스카디', v_r6, 'K');
-  add_character('char_264_f12yin', '마운틴', v_r6, 'K');
-  add_character('char_291_aglina', '안젤리나', v_r6, 'K');
-  add_character('char_293_thorns', '쏜즈', v_r6, 'K');
-  add_character('char_300_phenxi', '피아메타', v_r6, 'K');
-  add_character('char_311_mudrok', '머드락', v_r6, 'K');
-  add_character('char_322_lmlee', '리', v_r6, 'K');
-  add_character('char_332_archet', '아르케토', v_r6, 'K');
-  add_character('char_340_shwaz', '슈바르츠', v_r6, 'K');
-  add_character('char_350_surtr', '수르트', v_r6, 'K');
-  add_character('char_358_lisa', '스즈란', v_r6, 'K');
-  add_character('char_362_saga', '사가', v_r6, 'K');
-  add_character('char_377_gdglow', '골든글로우', v_r6, 'K');
+  add_character('char_250_phatom', '팬텀', v_r6, NULL);
+  add_character('char_263_skadi', '스카디', v_r6, NULL);
+  add_character('char_264_f12yin', '마운틴', v_r6, NULL);
+  add_character('char_291_aglina', '안젤리나', v_r6, NULL);
+  add_character('char_293_thorns', '쏜즈', v_r6, NULL);
+  add_character('char_300_phenxi', '피아메타', v_r6, NULL);
+  add_character('char_311_mudrok', '머드락', v_r6, NULL);
+  add_character('char_322_lmlee', '리', v_r6, NULL);
+  add_character('char_332_archet', '아르케토', v_r6, NULL);
+  add_character('char_340_shwaz', '슈바르츠', v_r6, NULL);
+  add_character('char_350_surtr', '수르트', v_r6, NULL);
+  add_character('char_358_lisa', '스즈란', v_r6, NULL);
+  add_character('char_362_saga', '사가', v_r6, NULL);
+  add_character('char_377_gdglow', '골든글로우', v_r6, NULL);
   add_character('char_391_rosmon', '로즈몬티스', v_r6, NULL);
-  add_character('char_400_weedy', '위디', v_r6, 'K');
-  add_character('char_416_zumama', '유넥티스', v_r6, 'K');
-  add_character('char_420_flamtl', '플레임테일', v_r6, 'K');
-  add_character('char_423_blemsh', '블레미샤인', v_r6, 'K');
-  add_character('char_426_billro', '카넬리안', v_r6, 'K');
-  add_character('char_430_fartth', '파투스', v_r6, 'K');
-  add_character('char_437_mizuki', '미즈키', v_r6, 'K');
+  add_character('char_400_weedy', '위디', v_r6, NULL);
+  add_character('char_416_zumama', '유넥티스', v_r6, NULL);
+  add_character('char_420_flamtl', '플레임테일', v_r6, NULL);
+  add_character('char_423_blemsh', '블레미샤인', v_r6, NULL);
+  add_character('char_426_billro', '카넬리안', v_r6, NULL);
+  add_character('char_430_fartth', '파투스', v_r6, NULL);
+  add_character('char_437_mizuki', '미즈키', v_r6, NULL);
   add_character('char_450_necras', '네크라스', v_r6, 'S');
   add_character('char_456_ash', 'Ash', v_r6, NULL);
-  add_character('char_472_pasngr', '패신저', v_r6, 'K');
-  add_character('char_479_sleach', '사일라흐', v_r6, 'K');
-  add_character('char_485_pallas', '팔라스', v_r6, 'K');
+  add_character('char_472_pasngr', '패신저', v_r6, NULL);
+  add_character('char_479_sleach', '사일라흐', v_r6, NULL);
+  add_character('char_485_pallas', '팔라스', v_r6, NULL);
   add_character('char_1012_skadi2', '스카디 더 커럽팅 하트', v_r6, NULL);
   add_character('char_1013_chen2', '첸 더 홀룽데이', v_r6, NULL);
   add_character('char_1014_nearl2', '니어 더 래디언트 나이트', v_r6, NULL);
@@ -278,7 +265,7 @@ BEGIN
   add_character('char_1051_headb2', '지마 더 레이징 타이드', v_r6, 'S');
   add_character('char_1052_kalts2', '켈시 에스페란타', v_r6, NULL);
   add_character('char_2012_typhon', '티폰', v_r6, 'S');
-  add_character('char_2013_cerber', '케오베', v_r6, 'K');
+  add_character('char_2013_cerber', '케오베', v_r6, NULL);
   add_character('char_2014_nian', '니엔', v_r6, NULL);
   add_character('char_2015_dusk', '시', v_r6, NULL);
   add_character('char_2023_ling', '링', v_r6, NULL);
@@ -286,14 +273,14 @@ BEGIN
   add_character('char_2025_shu', '슈', v_r6, NULL);
   add_character('char_2026_yu', '위', v_r6, NULL);
   add_character('char_2027_wang', '왕', v_r6, NULL);
-  add_character('char_4009_irene', '아이린', v_r6, 'K');
+  add_character('char_4009_irene', '아이린', v_r6, NULL);
   add_character('char_4010_etlchi', '엔텔레키아', v_r6, 'S');
   add_character('char_4026_vulpis', '불피스폴리아', v_r6, 'S');
   add_character('char_4027_heyak', '오올헤약', v_r6, 'S');
   add_character('char_4037_demetr', '벨로네', v_r6, 'S');
-  add_character('char_4039_horn', '혼', v_r6, 'K');
-  add_character('char_4046_ebnhlz', '에벤홀츠', v_r6, 'K');
-  add_character('char_4048_doroth', '도로시', v_r6, 'K');
+  add_character('char_4039_horn', '혼', v_r6, NULL);
+  add_character('char_4046_ebnhlz', '에벤홀츠', v_r6, NULL);
+  add_character('char_4048_doroth', '도로시', v_r6, NULL);
   add_character('char_4055_bgsnow', '파죰카', v_r6, 'S');
   add_character('char_4056_titi', '티티', v_r6, 'S');
   add_character('char_4058_pepe', '페페', v_r6, NULL);
@@ -322,97 +309,97 @@ BEGIN
   add_character('char_4204_mantra', '만트라', v_r6, 'S');
   add_character('char_4212_nasti', '내스티', v_r6, 'S');
   add_character('char_4228_closur', '클로저', v_r6, 'S');
-  add_character('char_101_sora', '소라', v_r5, 'K');
-  add_character('char_102_texas', '텍사스', v_r5, 'K');
-  add_character('char_106_franka', '프란카', v_r5, 'K');
-  add_character('char_107_liskam', '리스캄', v_r5, 'K');
-  add_character('char_108_silent', '사일런스', v_r5, 'K');
-  add_character('char_115_headbr', '지마', v_r5, 'K');
-  add_character('char_128_plosis', '프틸롭시스', v_r5, 'K');
-  add_character('char_129_bluep', '블루포이즌', v_r5, 'K');
-  add_character('char_140_whitew', '라플란드', v_r5, 'K');
-  add_character('char_143_ghost', '스펙터', v_r5, 'K');
-  add_character('char_144_red', '레드', v_r5, 'K');
-  add_character('char_145_prove', '프로방스', v_r5, 'K');
-  add_character('char_148_nearl', '니어', v_r5, 'K');
+  add_character('char_101_sora', '소라', v_r5, NULL);
+  add_character('char_102_texas', '텍사스', v_r5, NULL);
+  add_character('char_106_franka', '프란카', v_r5, NULL);
+  add_character('char_107_liskam', '리스캄', v_r5, NULL);
+  add_character('char_108_silent', '사일런스', v_r5, NULL);
+  add_character('char_115_headbr', '지마', v_r5, NULL);
+  add_character('char_128_plosis', '프틸롭시스', v_r5, NULL);
+  add_character('char_129_bluep', '블루포이즌', v_r5, NULL);
+  add_character('char_140_whitew', '라플란드', v_r5, NULL);
+  add_character('char_143_ghost', '스펙터', v_r5, NULL);
+  add_character('char_144_red', '레드', v_r5, NULL);
+  add_character('char_145_prove', '프로방스', v_r5, NULL);
+  add_character('char_148_nearl', '니어', v_r5, NULL);
   add_character('char_155_tiger', '인드라', v_r5, 'S');
-  add_character('char_158_milu', '파이어워치', v_r5, 'K');
+  add_character('char_158_milu', '파이어워치', v_r5, NULL);
   add_character('char_163_hpsts', '벌컨', v_r5, 'S');
-  add_character('char_164_nightm', '나이트메어', v_r5, 'K');
-  add_character('char_166_skfire', '스카이파이어', v_r5, 'K');
-  add_character('char_171_bldsk', '와파린', v_r5, 'K');
-  add_character('char_173_slchan', '클리프하트', v_r5, 'K');
-  add_character('char_174_slbell', '프라마닉스', v_r5, 'K');
+  add_character('char_164_nightm', '나이트메어', v_r5, NULL);
+  add_character('char_166_skfire', '스카이파이어', v_r5, NULL);
+  add_character('char_171_bldsk', '와파린', v_r5, NULL);
+  add_character('char_173_slchan', '클리프하트', v_r5, NULL);
+  add_character('char_174_slbell', '프라마닉스', v_r5, NULL);
   add_character('char_194_leto', '레토', v_r5, 'S');
-  add_character('char_195_glassb', '이스티나', v_r5, 'K');
-  add_character('char_201_moeshd', '크루아상', v_r5, 'K');
-  add_character('char_204_platnm', '플래티넘', v_r5, 'K');
-  add_character('char_214_kafka', '카프카', v_r5, 'K');
-  add_character('char_215_mantic', '맨티코어', v_r5, 'K');
-  add_character('char_218_cuttle', '안드레아나', v_r5, 'K');
-  add_character('char_219_meteo', '메테오라이트', v_r5, 'K');
-  add_character('char_226_hmau', '훔', v_r5, 'K');
-  add_character('char_241_panda', '에프이터', v_r5, 'K');
-  add_character('char_242_otter', '메이어', v_r5, 'K');
-  add_character('char_243_waaifu', '와이후', v_r5, 'K');
-  add_character('char_254_vodfox', '샤마르', v_r5, 'K');
-  add_character('char_261_sddrag', '리드', v_r5, 'K');
-  add_character('char_274_astesi', '아스테시아', v_r5, 'K');
-  add_character('char_279_excu', '이그제큐터', v_r5, 'K');
-  add_character('char_294_ayer', '에이어스카르페', v_r5, 'K');
+  add_character('char_195_glassb', '이스티나', v_r5, NULL);
+  add_character('char_201_moeshd', '크루아상', v_r5, NULL);
+  add_character('char_204_platnm', '플래티넘', v_r5, NULL);
+  add_character('char_214_kafka', '카프카', v_r5, NULL);
+  add_character('char_215_mantic', '맨티코어', v_r5, NULL);
+  add_character('char_218_cuttle', '안드레아나', v_r5, NULL);
+  add_character('char_219_meteo', '메테오라이트', v_r5, NULL);
+  add_character('char_226_hmau', '훔', v_r5, NULL);
+  add_character('char_241_panda', '에프이터', v_r5, NULL);
+  add_character('char_242_otter', '메이어', v_r5, NULL);
+  add_character('char_243_waaifu', '와이후', v_r5, NULL);
+  add_character('char_254_vodfox', '샤마르', v_r5, NULL);
+  add_character('char_261_sddrag', '리드', v_r5, NULL);
+  add_character('char_274_astesi', '아스테시아', v_r5, NULL);
+  add_character('char_279_excu', '이그제큐터', v_r5, NULL);
+  add_character('char_294_ayer', '에이어스카르페', v_r5, NULL);
   add_character('char_297_hamoni', '아르모니', v_r5, 'S');
-  add_character('char_306_leizi', '레이즈', v_r5, 'K');
-  add_character('char_308_swire', '스와이어', v_r5, 'K');
-  add_character('char_326_glacus', '글라우쿠스', v_r5, 'K');
-  add_character('char_338_iris', '아이리스', v_r5, 'K');
+  add_character('char_306_leizi', '레이즈', v_r5, NULL);
+  add_character('char_308_swire', '스와이어', v_r5, NULL);
+  add_character('char_326_glacus', '글라우쿠스', v_r5, NULL);
+  add_character('char_338_iris', '아이리스', v_r5, NULL);
   add_character('char_341_sntlla', '산탈라', v_r5, 'S');
-  add_character('char_343_tknogi', '츠키노기', v_r5, 'K');
-  add_character('char_344_beewax', '비즈왁스', v_r5, 'K');
-  add_character('char_346_aosta', '아오스타', v_r5, 'K');
-  add_character('char_349_chiave', '키아베', v_r5, 'K');
-  add_character('char_356_broca', '브로카', v_r5, 'K');
-  add_character('char_363_toddi', '토디폰스', v_r5, 'K');
-  add_character('char_365_aprl', '에이프릴', v_r5, 'K');
-  add_character('char_367_swllow', '그레이스롯', v_r5, 'K');
-  add_character('char_373_lionhd', '레온하르트', v_r5, 'K');
-  add_character('char_378_asbest', '아스베스토스', v_r5, 'K');
-  add_character('char_379_sesa', '세사', v_r5, 'K');
-  add_character('char_401_elysm', '엘리시움', v_r5, 'K');
-  add_character('char_415_flint', '플린트', v_r5, 'K');
-  add_character('char_421_crow', '라 플루마', v_r5, 'K');
-  add_character('char_422_aurora', '오로라', v_r5, 'K');
-  add_character('char_431_ashlok', '애쉬락', v_r5, 'K');
-  add_character('char_433_windft', '윈드플릿', v_r5, 'K');
-  add_character('char_436_whispr', '위스퍼레인', v_r5, 'K');
+  add_character('char_343_tknogi', '츠키노기', v_r5, NULL);
+  add_character('char_344_beewax', '비즈왁스', v_r5, NULL);
+  add_character('char_346_aosta', '아오스타', v_r5, NULL);
+  add_character('char_349_chiave', '키아베', v_r5, NULL);
+  add_character('char_356_broca', '브로카', v_r5, NULL);
+  add_character('char_363_toddi', '토디폰스', v_r5, NULL);
+  add_character('char_365_aprl', '에이프릴', v_r5, NULL);
+  add_character('char_367_swllow', '그레이스롯', v_r5, NULL);
+  add_character('char_373_lionhd', '레온하르트', v_r5, NULL);
+  add_character('char_378_asbest', '아스베스토스', v_r5, NULL);
+  add_character('char_379_sesa', '세사', v_r5, NULL);
+  add_character('char_401_elysm', '엘리시움', v_r5, NULL);
+  add_character('char_415_flint', '플린트', v_r5, NULL);
+  add_character('char_421_crow', '라 플루마', v_r5, NULL);
+  add_character('char_422_aurora', '오로라', v_r5, NULL);
+  add_character('char_431_ashlok', '애쉬락', v_r5, NULL);
+  add_character('char_433_windft', '윈드플릿', v_r5, NULL);
+  add_character('char_436_whispr', '위스퍼레인', v_r5, NULL);
   add_character('char_446_aroma', '아로마', v_r5, 'S');
-  add_character('char_455_nothin', '우요우', v_r5, 'K');
+  add_character('char_455_nothin', '우요우', v_r5, NULL);
   add_character('char_457_blitz', 'Blitz', v_r5, NULL);
   add_character('char_458_rfrost', 'Frost', v_r5, NULL);
   add_character('char_464_cement', '시멘트', v_r5, 'S');
-  add_character('char_473_mberry', '멀베리', v_r5, 'K');
-  add_character('char_475_akafyu', '아카후유', v_r5, 'K');
-  add_character('char_476_blkngt', '블랙나이트', v_r5, 'K');
-  add_character('char_478_kirara', '키라라', v_r5, 'K');
+  add_character('char_473_mberry', '멀베리', v_r5, NULL);
+  add_character('char_475_akafyu', '아카후유', v_r5, NULL);
+  add_character('char_476_blkngt', '블랙나이트', v_r5, NULL);
+  add_character('char_478_kirara', '키라라', v_r5, NULL);
   add_character('char_487_bobb', '보빙', v_r5, 'S');
   add_character('char_488_buildr', '폰사이러스', v_r5, 'S');
-  add_character('char_489_serum', '코로세럼', v_r5, 'K');
-  add_character('char_492_quercu', '퀘르쿠스', v_r5, 'K');
+  add_character('char_489_serum', '코로세럼', v_r5, NULL);
+  add_character('char_492_quercu', '퀘르쿠스', v_r5, NULL);
   add_character('char_493_firwhl', '파이어휘슬', v_r5, 'S');
   add_character('char_494_vendla', '벤델라', v_r5, 'S');
   add_character('char_497_ctable', '칸타빌레', v_r5, 'S');
   add_character('char_1022_flwr2', '퍼퓨머 더 디스틸트', v_r5, 'S');
-  add_character('char_1024_hbisc2', '히비스커스 더 퓨리파이어', v_r5, 'K');
-  add_character('char_1027_greyy2', '그레이 더 라이트닝베어러', v_r5, 'K');
+  add_character('char_1024_hbisc2', '히비스커스 더 퓨리파이어', v_r5, NULL);
+  add_character('char_1027_greyy2', '그레이 더 라이트닝베어러', v_r5, NULL);
   add_character('char_1030_noirc2', '레우스S 느와르 코르네', v_r5, NULL);
   add_character('char_1036_fang2', '팽 더 파이어 샤픈드', v_r5, 'S');
   add_character('char_1049_catap2', '진오우S 캐터펄트', v_r5, NULL);
   add_character('char_4006_melnte', '멜라나이트', v_r5, 'S');
   add_character('char_4014_lunacu', '루나컵', v_r5, 'S');
   add_character('char_4015_spuria', '스푸리아', v_r5, 'S');
-  add_character('char_4016_kazema', '카제마루', v_r5, 'K');
+  add_character('char_4016_kazema', '카제마루', v_r5, NULL);
   add_character('char_4031_liesel', '리프레사', v_r5, 'S');
   add_character('char_4032_provs', '프로바이조', v_r5, 'S');
-  add_character('char_4040_rockr', '락락', v_r5, 'K');
+  add_character('char_4040_rockr', '락락', v_r5, NULL);
   add_character('char_4052_surfer', '서퍼', v_r5, 'S');
   add_character('char_4071_peper', '파프리카', v_r5, 'S');
   add_character('char_4079_haini', '루실라', v_r5, 'S');
@@ -445,72 +432,72 @@ BEGIN
   add_character('char_4223_botany', '보타니', v_r5, 'S');
   add_character('char_4224_turdus', '우쿠시크', v_r5, 'S');
   add_character('char_4225_tanya', '크랙본', v_r5, 'S');
-  add_character('char_109_fmout', '기타노', v_r4, 'SK');
-  add_character('char_110_deepcl', '딥컬러', v_r4, 'SK');
-  add_character('char_117_myrrh', '미르', v_r4, 'SK');
-  add_character('char_118_yuki', '시라유키', v_r4, 'SK');
-  add_character('char_126_shotst', '메테오', v_r4, 'SK');
+  add_character('char_109_fmout', '기타노', v_r4, 'S');
+  add_character('char_110_deepcl', '딥컬러', v_r4, 'S');
+  add_character('char_117_myrrh', '미르', v_r4, 'S');
+  add_character('char_118_yuki', '시라유키', v_r4, 'S');
+  add_character('char_126_shotst', '메테오', v_r4, 'S');
   add_character('char_127_estell', '에스텔', v_r4, 'S');
-  add_character('char_130_doberm', '도베르만', v_r4, 'SK');
-  add_character('char_133_mm', '메이', v_r4, 'SK');
-  add_character('char_137_brownb', '비헌터', v_r4, 'SK');
-  add_character('char_141_nights', '헤이즈', v_r4, 'SK');
-  add_character('char_149_scave', '스캐빈저', v_r4, 'SK');
-  add_character('char_150_snakek', '쿠오라', v_r4, 'SK');
-  add_character('char_151_myrtle', '머틀', v_r4, 'SK');
-  add_character('char_181_flower', '퍼퓨머', v_r4, 'SK');
-  add_character('char_183_skgoat', '어스스피릿', v_r4, 'SK');
-  add_character('char_185_frncat', '무스', v_r4, 'SK');
-  add_character('char_190_clour', '버메일', v_r4, 'SK');
-  add_character('char_193_frostl', '프로스트리프', v_r4, 'SK');
-  add_character('char_196_sunbr', '굼', v_r4, 'SK');
-  add_character('char_199_yak', '마터호른', v_r4, 'SK');
-  add_character('char_235_jesica', '제시카', v_r4, 'SK');
-  add_character('char_236_rope', '로프', v_r4, 'SK');
-  add_character('char_237_gravel', '그라벨', v_r4, 'SK');
-  add_character('char_253_greyy', '그레이', v_r4, 'SK');
-  add_character('char_258_podego', '포덴코', v_r4, 'SK');
-  add_character('char_271_spikes', '아렌', v_r4, 'SK');
-  add_character('char_272_strong', '제이', v_r4, 'SK');
-  add_character('char_277_sqrrel', '쇼', v_r4, 'SK');
-  add_character('char_289_gyuki', '마토이마루', v_r4, 'SK');
-  add_character('char_290_vigna', '비그나', v_r4, 'SK');
-  add_character('char_298_susuro', '수수로', v_r4, 'SK');
-  add_character('char_301_cutter', '커터', v_r4, 'SK');
-  add_character('char_302_glaze', '엠브리엘', v_r4, 'SK');
-  add_character('char_328_cammou', '클릭', v_r4, 'SK');
-  add_character('char_337_utage', '우타게', v_r4, 'SK');
-  add_character('char_347_jaksel', '재키', v_r4, 'SK');
-  add_character('char_366_acdrop', '애시드드롭', v_r4, 'SK');
-  add_character('char_381_bubble', '버블', v_r4, 'SK');
-  add_character('char_440_pinecn', '파인콘', v_r4, 'SK');
+  add_character('char_130_doberm', '도베르만', v_r4, 'S');
+  add_character('char_133_mm', '메이', v_r4, 'S');
+  add_character('char_137_brownb', '비헌터', v_r4, 'S');
+  add_character('char_141_nights', '헤이즈', v_r4, 'S');
+  add_character('char_149_scave', '스캐빈저', v_r4, 'S');
+  add_character('char_150_snakek', '쿠오라', v_r4, 'S');
+  add_character('char_151_myrtle', '머틀', v_r4, 'S');
+  add_character('char_181_flower', '퍼퓨머', v_r4, 'S');
+  add_character('char_183_skgoat', '어스스피릿', v_r4, 'S');
+  add_character('char_185_frncat', '무스', v_r4, 'S');
+  add_character('char_190_clour', '버메일', v_r4, 'S');
+  add_character('char_193_frostl', '프로스트리프', v_r4, 'S');
+  add_character('char_196_sunbr', '굼', v_r4, 'S');
+  add_character('char_199_yak', '마터호른', v_r4, 'S');
+  add_character('char_235_jesica', '제시카', v_r4, 'S');
+  add_character('char_236_rope', '로프', v_r4, 'S');
+  add_character('char_237_gravel', '그라벨', v_r4, 'S');
+  add_character('char_253_greyy', '그레이', v_r4, 'S');
+  add_character('char_258_podego', '포덴코', v_r4, 'S');
+  add_character('char_271_spikes', '아렌', v_r4, 'S');
+  add_character('char_272_strong', '제이', v_r4, 'S');
+  add_character('char_277_sqrrel', '쇼', v_r4, 'S');
+  add_character('char_289_gyuki', '마토이마루', v_r4, 'S');
+  add_character('char_290_vigna', '비그나', v_r4, 'S');
+  add_character('char_298_susuro', '수수로', v_r4, 'S');
+  add_character('char_301_cutter', '커터', v_r4, 'S');
+  add_character('char_302_glaze', '엠브리엘', v_r4, 'S');
+  add_character('char_328_cammou', '클릭', v_r4, 'S');
+  add_character('char_337_utage', '우타게', v_r4, 'S');
+  add_character('char_347_jaksel', '재키', v_r4, 'S');
+  add_character('char_366_acdrop', '애시드드롭', v_r4, 'S');
+  add_character('char_381_bubble', '버블', v_r4, 'S');
+  add_character('char_440_pinecn', '파인콘', v_r4, 'S');
   add_character('char_445_wscoot', '윈드스쿠트', v_r4, 'S');
-  add_character('char_452_bstalk', '빈스토크', v_r4, 'SK');
-  add_character('char_469_indigo', '인디고', v_r4, 'SK');
-  add_character('char_484_robrta', '로베르타', v_r4, 'SK');
-  add_character('char_491_humus', '휴머스', v_r4, 'SK');
-  add_character('char_4041_chnut', '체스트넛', v_r4, 'SK');
-  add_character('char_4062_totter', '토터', v_r4, 'SK');
-  add_character('char_4107_vrdant', '버던트', v_r4, 'SK');
-  add_character('char_4130_luton', '루토나다', v_r4, 'SK');
+  add_character('char_452_bstalk', '빈스토크', v_r4, 'S');
+  add_character('char_469_indigo', '인디고', v_r4, 'S');
+  add_character('char_484_robrta', '로베르타', v_r4, 'S');
+  add_character('char_491_humus', '휴머스', v_r4, 'S');
+  add_character('char_4041_chnut', '체스트넛', v_r4, 'S');
+  add_character('char_4062_totter', '토터', v_r4, 'S');
+  add_character('char_4107_vrdant', '버던트', v_r4, 'S');
+  add_character('char_4130_luton', '루토나다', v_r4, 'S');
   add_character('char_4208_wintim', '스네구로치카', v_r4, 'S');
-  add_character('char_120_hibisc', '히비스커스', v_r3, 'SK');
-  add_character('char_121_lava', '라바', v_r3, 'SK');
-  add_character('char_122_beagle', '비글', v_r3, 'SK');
-  add_character('char_123_fang', '팽', v_r3, 'SK');
-  add_character('char_124_kroos', '크루스', v_r3, 'SK');
-  add_character('char_192_falco', '플룸', v_r3, 'SK');
-  add_character('char_208_melan', '멜란사', v_r3, 'SK');
-  add_character('char_209_ardign', '카디건', v_r3, 'SK');
-  add_character('char_210_stward', '스튜어드', v_r3, 'SK');
+  add_character('char_120_hibisc', '히비스커스', v_r3, 'S');
+  add_character('char_121_lava', '라바', v_r3, 'S');
+  add_character('char_122_beagle', '비글', v_r3, 'S');
+  add_character('char_123_fang', '팽', v_r3, 'S');
+  add_character('char_124_kroos', '크루스', v_r3, 'S');
+  add_character('char_192_falco', '플룸', v_r3, 'S');
+  add_character('char_208_melan', '멜란사', v_r3, 'S');
+  add_character('char_209_ardign', '카디건', v_r3, 'S');
+  add_character('char_210_stward', '스튜어드', v_r3, 'S');
   add_character('char_211_adnach', '아드나키엘', v_r3, 'S');
-  add_character('char_212_ansel', '안셀', v_r3, 'SK');
-  add_character('char_240_wyvern', '바닐라', v_r3, 'SK');
-  add_character('char_278_orchid', '오키드', v_r3, 'SK');
-  add_character('char_281_popka', '포푸카', v_r3, 'SK');
-  add_character('char_282_catap', '캐터펄트', v_r3, 'SK');
-  add_character('char_283_midn', '미드나이트', v_r3, 'SK');
-  add_character('char_284_spot', '스팟', v_r3, 'SK');
+  add_character('char_212_ansel', '안셀', v_r3, 'S');
+  add_character('char_240_wyvern', '바닐라', v_r3, 'S');
+  add_character('char_278_orchid', '오키드', v_r3, 'S');
+  add_character('char_281_popka', '포푸카', v_r3, 'S');
+  add_character('char_282_catap', '캐터펄트', v_r3, 'S');
+  add_character('char_283_midn', '미드나이트', v_r3, 'S');
+  add_character('char_284_spot', '스팟', v_r3, 'S');
 
   -- 예시 배너 (시험용, 실제 배너 아님)
   add_banner(v_type_standard, v_rule_standard, NULL, '예시 표준 헤드헌팅',
@@ -520,30 +507,6 @@ BEGIN
   add_pickup('char_4105_almond', 3);
   add_pickup('char_4079_haini', 4);
   add_pickup('char_4071_peper', 5);
-
-  add_banner(v_type_kernel, v_rule_kernel, 'CLASSIC_DOUBLE_KR_41_0_4', '커널: 호시구마·플레임테일',
-             TIMESTAMP '2026-10-06 04:00:00', TIMESTAMP '2026-10-20 03:59:59', 'Y');
-  add_pickup('char_136_hsguma', 1);
-  add_pickup('char_420_flamtl', 2);
-  add_pickup('char_363_toddi', 3);
-  add_pickup('char_242_otter', 4);
-  add_pickup('char_241_panda', 5);
-
-  add_banner(v_type_kernel, v_rule_kernel, 'CLASSIC_DOUBLE_KR_42_0_2', '커널: 사일라흐·유넥티스',
-             TIMESTAMP '2026-11-03 04:00:00', TIMESTAMP '2026-11-17 03:59:59', 'Y');
-  add_pickup('char_479_sleach', 1);
-  add_pickup('char_416_zumama', 2);
-  add_pickup('char_106_franka', 3);
-  add_pickup('char_436_whispr', 4);
-  add_pickup('char_431_ashlok', 5);
-
-  add_banner(v_type_kernel, v_rule_kernel, 'CLASSIC_DOUBLE_KR_42_0_3', '커널: 위디·팬텀',
-             TIMESTAMP '2026-11-17 04:00:00', TIMESTAMP '2026-12-01 03:59:59', 'Y');
-  add_pickup('char_400_weedy', 1);
-  add_pickup('char_250_phatom', 2);
-  add_pickup('char_101_sora', 3);
-  add_pickup('char_145_prove', 4);
-  add_pickup('char_455_nothin', 5);
 
   add_banner(v_type_collab, v_rule_collab, 'LINKAGE_KR_42_0_5', '콜라보: 비경의 사냥꾼',
              TIMESTAMP '2026-11-16 16:00:00', TIMESTAMP '2026-11-30 03:59:59', 'Y');
@@ -556,7 +519,7 @@ END;
 -- ------------------------------------------------------------
 -- 확인
 -- ------------------------------------------------------------
--- 배너 5, 캐릭터 310, 픽업 21, 규칙 3, 확률 12, 보장 6
+-- 배너 2, 캐릭터 310, 픽업 6, 규칙 2, 확률 8, 보장 4
 SELECT (SELECT COUNT(*) FROM banner)         AS banners,
        (SELECT COUNT(*) FROM game_character) AS characters,
        (SELECT COUNT(*) FROM banner_pickup)  AS pickups,
